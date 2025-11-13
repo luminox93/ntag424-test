@@ -29,8 +29,14 @@ function HomeContent() {
   const piccData = searchParams.get('picc_data') || searchParams.get('p');
   const cmac = searchParams.get('cmac') || searchParams.get('c');
 
+  // URL 파라미터 변경 시 result 초기화
   useEffect(() => {
-    if (piccData && cmac && session && !loading && !result) {
+    setResult(null);
+    setShowRegisterDialog(false);
+  }, [piccData, cmac]);
+
+  useEffect(() => {
+    if (piccData && cmac && session && !loading) {
       verifyTag();
     }
   }, [piccData, cmac, session]);

@@ -60,6 +60,9 @@ function HomeContent() {
 
       if (data.needsRegistration) {
         setShowRegisterDialog(true);
+      } else if (data.success) {
+        // 인증 성공 시 URL 파라미터 제거 (리플레이 공격 방지)
+        window.history.replaceState({}, '', '/');
       }
     } catch (error) {
       console.error('Verification error:', error);
@@ -73,10 +76,13 @@ function HomeContent() {
     }
   }, [piccData, cmac]);
 
-  // URL 파라미터 변경 시 result 초기화
+  // URL 파라미터 변경 시 result 초기화 (단, 인증 성공 후 파라미터 제거 시에는 유지)
   useEffect(() => {
-    setResult(null);
-    setShowRegisterDialog(false);
+    // 파라미터가 있을 때만 초기화 (파라미터가 없어질 때는 유지)
+    if (piccData && cmac) {
+      setResult(null);
+      setShowRegisterDialog(false);
+    }
   }, [piccData, cmac]);
 
   useEffect(() => {
@@ -160,7 +166,8 @@ function HomeContent() {
     );
   }
 
-  if ((piccData && cmac) && session) {
+  // 태그 검증 화면: 파라미터가 있거나, 인증 성공 결과가 있을 때
+  if (((piccData && cmac) || result) && session) {
     return (
       <div className={styles.container}>
         <div className={styles.header}>
@@ -173,11 +180,13 @@ function HomeContent() {
           <button onClick={() => signOut()} className={styles.logoutButton}>로그아웃</button>
         </div>
         <main className={styles.main}>
-          <div style={{padding: '10px', background: '#f0f0f0', borderRadius: '5px', marginBottom: '10px', fontSize: '12px'}}>
-            <div><strong>Status:</strong> {loading ? '검증 중...' : result ? (result.success ? '성공' : '실패') : '대기 중'}</div>
-            <div><strong>piccData:</strong> {piccData?.substring(0, 20)}...</div>
-            <div><strong>cmac:</strong> {cmac?.substring(0, 16)}</div>
-          </div>
+          {piccData && cmac && (
+            <div style={{padding: '10px', background: '#f0f0f0', borderRadius: '5px', marginBottom: '10px', fontSize: '12px'}}>
+              <div><strong>Status:</strong> {loading ? '검증 중...' : result ? (result.success ? '성공' : '실패') : '대기 중'}</div>
+              <div><strong>piccData:</strong> {piccData?.substring(0, 20)}...</div>
+              <div><strong>cmac:</strong> {cmac?.substring(0, 16)}</div>
+            </div>
+          )}
           {loading && <div className={styles.card}><div className={styles.loading}>검증 중...</div></div>}
           
           {showRegisterDialog && result?.needsRegistration && (
@@ -209,6 +218,12 @@ function HomeContent() {
                   <div className={styles.card}>
                     <h2>대시보드</h2>
                     <p>태그 인증에 성공했습니다.</p>
+                    <button
+                      onClick={() => { setResult(null); window.history.replaceState({}, '', '/'); }}
+                      style={{marginTop: '10px', padding: '10px 20px', cursor: 'pointer'}}
+                    >
+                      내 태그 목록 보기
+                    </button>
                   </div>
                 </div>
               ) : (

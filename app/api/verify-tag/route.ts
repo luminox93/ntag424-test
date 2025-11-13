@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth.config';
 import { verifyNTAG424, parseNTAG424URL } from '@/lib/ntag424';
+import { getTagOwner } from '@/lib/kv';
 
 export async function POST(request: NextRequest) {
   try {
     // 인증 확인
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user?.email) {
       return NextResponse.json(
-        { error: 'Unauthorized - Please login first' },
+        { success: false, message: 'Unauthorized', reason: 'Please login first' },
         { status: 401 }
       );
     }
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
     const aesKey = process.env.NTAG424_AES_KEY;
     if (!aesKey) {
       return NextResponse.json(
-        { error: 'Server configuration error - AES key not set' },
+        { success: false, message: 'Server configuration error', reason: 'AES key not set' },
         { status: 500 }
       );
     }
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
       tagData = parseNTAG424URL(url);
       if (!tagData) {
         return NextResponse.json(
-          { error: 'Invalid NTAG424 URL format' },
+          { success: false, message: 'Invalid NTAG424 URL format' },
           { status: 400 }
         );
       }
@@ -41,26 +42,15 @@ export async function POST(request: NextRequest) {
       tagData = { piccData, cmac };
     } else {
       return NextResponse.json(
-        { error: 'Missing required parameters: url or (piccData and cmac)' },
+        { success: false, message: 'Missing required parameters', reason: 'url or (piccData and cmac) required' },
         { status: 400 }
       );
     }
 
-    // 태그 검증
+    // 태그 검증 (CMAC, 리플레이 공격)
     const result = await verifyNTAG424(tagData, aesKey);
 
-    if (result.valid) {
-      return NextResponse.json({
-        success: true,
-        message: 'Tag verified successfully',
-        data: {
-          uid: result.uid,
-          counter: result.counter,
-          user: session.user?.email,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    } else {
+    if (!result.valid) {
       return NextResponse.json({
         success: false,
         message: 'Tag verification failed',
@@ -71,77 +61,51 @@ export async function POST(request: NextRequest) {
         },
       }, { status: 400 });
     }
-  } catch (error) {
-    console.error('Tag verification error:', error);
-    return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+
+    // 태그 소유자 확인
+    const owner = await getTagOwner(result.uid!);
+    if (!owner) {
+      return NextResponse.json({
+        success: false,
+        message: 'Access denied',
+        reason: 'Tag not registered to any user',
+        data: {
+          uid: result.uid,
+          counter: result.counter,
+        },
+      }, { status: 403 });
+    }
+
+    if (owner !== session.user.email) {
+      return NextResponse.json({
+        success: false,
+        message: 'Access denied',
+        reason: 'Tag is registered to another user',
+        data: {
+          uid: result.uid,
+          counter: result.counter,
+        },
+      }, { status: 403 });
+    }
+
+    // 모든 검증 통과
+    return NextResponse.json({
+      success: true,
+      message: 'Access granted',
+      data: {
+        uid: result.uid,
+        counter: result.counter,
+        user: session.user.email,
+        timestamp: new Date().toISOString(),
       },
-      { status: 500 }
-    );
-  }
-}
-
-// GET 메서드로 URL 파라미터를 통한 검증도 지원
-export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Please login first' },
-        { status: 401 }
-      );
-    }
-
-    const url = request.url;
-    const aesKey = process.env.NTAG424_AES_KEY;
-
-    if (!aesKey) {
-      return NextResponse.json(
-        { error: 'Server configuration error - AES key not set' },
-        { status: 500 }
-      );
-    }
-
-    const tagData = parseNTAG424URL(url);
-    if (!tagData) {
-      return NextResponse.json(
-        { error: 'Invalid NTAG424 URL format' },
-        { status: 400 }
-      );
-    }
-
-    const result = await verifyNTAG424(tagData, aesKey);
-
-    if (result.valid) {
-      return NextResponse.json({
-        success: true,
-        message: 'Tag verified successfully',
-        data: {
-          uid: result.uid,
-          counter: result.counter,
-          user: session.user?.email,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    } else {
-      return NextResponse.json({
-        success: false,
-        message: 'Tag verification failed',
-        reason: result.reason,
-        data: {
-          uid: result.uid,
-          counter: result.counter,
-        },
-      }, { status: 400 });
-    }
+    });
   } catch (error) {
     console.error('Tag verification error:', error);
     return NextResponse.json(
       {
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        success: false,
+        message: 'Internal server error',
+        reason: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
     );

@@ -1,11 +1,9 @@
 import { createDecipheriv } from 'crypto';
+import { isCounterUsed, getMaxCounter, saveCounter } from './kv';
 
 /**
  * NTAG424 태그 검증 및 리플레이 공격 방어 유틸리티
  */
-
-// 사용된 카운터를 추적하기 위한 저장소 (프로덕션에서는 Vercel KV 등 사용)
-const usedCounters = new Map<string, Set<number>>();
 
 interface NTAG424Data {
   piccData: string;
@@ -90,32 +88,23 @@ function parsePICCData(piccData: string): { uid: string; counter: number } | nul
 }
 
 /**
- * 리플레이 공격 체크
+ * 리플레이 공격 체크 (Vercel KV 사용)
  */
-function checkReplayAttack(uid: string, counter: number): boolean {
-  if (!usedCounters.has(uid)) {
-    usedCounters.set(uid, new Set());
-  }
-
-  const uidCounters = usedCounters.get(uid)!;
-
+async function checkReplayAttack(uid: string, counter: number): Promise<boolean> {
   // 이미 사용된 카운터인지 확인
-  if (uidCounters.has(counter)) {
+  const used = await isCounterUsed(uid, counter);
+  if (used) {
     return false; // 리플레이 공격 감지
   }
 
   // 카운터가 이전 최대값보다 작으면 리플레이 공격 가능성
-  const maxCounter = Math.max(...Array.from(uidCounters), 0);
+  const maxCounter = await getMaxCounter(uid);
   if (counter <= maxCounter) {
     return false;
   }
 
-  // 카운터 저장 (최근 1000개만 유지)
-  uidCounters.add(counter);
-  if (uidCounters.size > 1000) {
-    const oldest = Math.min(...Array.from(uidCounters));
-    uidCounters.delete(oldest);
-  }
+  // 카운터 저장
+  await saveCounter(uid, counter);
 
   return true;
 }
@@ -154,7 +143,7 @@ export async function verifyNTAG424(
     }
 
     // 3. 리플레이 공격 체크
-    if (!checkReplayAttack(uid, counter)) {
+    if (!(await checkReplayAttack(uid, counter))) {
       return {
         valid: false,
         reason: 'Replay attack detected - counter already used or invalid',
@@ -204,20 +193,3 @@ export function parseNTAG424URL(url: string): NTAG424Data | null {
   }
 }
 
-/**
- * 사용된 카운터 통계 (디버깅/모니터링용)
- */
-export function getCounterStats(uid: string): {
-  totalUsed: number;
-  lastCounter: number;
-} {
-  const uidCounters = usedCounters.get(uid);
-  if (!uidCounters || uidCounters.size === 0) {
-    return { totalUsed: 0, lastCounter: 0 };
-  }
-
-  return {
-    totalUsed: uidCounters.size,
-    lastCounter: Math.max(...Array.from(uidCounters)),
-  };
-}

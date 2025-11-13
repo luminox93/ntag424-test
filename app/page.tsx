@@ -8,6 +8,7 @@ interface VerificationResult {
   success: boolean;
   message: string;
   reason?: string;
+  timestamp?: string;
   data?: {
     uid?: string;
     counter?: number;

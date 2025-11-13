@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { authOptions } from '@/lib/auth.config';
 import { verifyNTAG424, parseNTAG424URL } from '@/lib/ntag424';
 
 export async function POST(request: NextRequest) {

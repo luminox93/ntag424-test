@@ -6,12 +6,19 @@ import { kv } from '@vercel/kv';
 
 // 태그를 사용자에게 등록
 export async function registerTag(uid: string, userEmail: string): Promise<void> {
-  await kv.set(`tag:${uid}`, userEmail);
+  const key = `tag:${uid}`;
+  console.log('[KV] Setting key:', key, 'value:', userEmail);
+  await kv.set(key, userEmail);
+  console.log('[KV] Set complete');
 }
 
 // 태그의 소유자 조회
 export async function getTagOwner(uid: string): Promise<string | null> {
-  return await kv.get(`tag:${uid}`);
+  const key = `tag:${uid}`;
+  console.log('[KV] Getting key:', key);
+  const result = await kv.get<string>(key);
+  console.log('[KV] Get result:', result);
+  return result;
 }
 
 // 사용자의 모든 태그 조회

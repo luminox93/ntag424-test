@@ -48,6 +48,8 @@ export async function POST(request: NextRequest) {
     const { parseNTAG424Data } = await import('@/lib/ntag424');
     const parsedData = parseNTAG424Data(tagData.piccData);
 
+    console.log('[VERIFY] Parsed data:', parsedData);
+
     if (!parsedData) {
       return NextResponse.json({
         success: false,
@@ -58,6 +60,8 @@ export async function POST(request: NextRequest) {
 
     // 태그 소유자 확인 (리플레이 검사 전에 먼저 확인)
     const owner = await getTagOwner(parsedData.uid);
+    console.log('[VERIFY] Owner lookup for UID', parsedData.uid, ':', owner);
+    console.log('[VERIFY] Current user:', session.user.email);
 
     // 미등록 태그는 리플레이 검사 없이 등록 제안
     if (!owner) {

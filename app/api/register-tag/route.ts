@@ -7,6 +7,8 @@ import { registerTag, getTagOwner, getUserTags } from '@/lib/kv';
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    console.log('[REGISTER] Session:', session?.user?.email);
+
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Unauthorized - Please login first' },
@@ -16,6 +18,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { uid } = body;
+    console.log('[REGISTER] Received UID:', uid);
 
     if (!uid) {
       return NextResponse.json(
@@ -26,6 +29,8 @@ export async function POST(request: NextRequest) {
 
     // 이미 등록된 태그인지 확인
     const existingOwner = await getTagOwner(uid);
+    console.log('[REGISTER] Existing owner:', existingOwner);
+
     if (existingOwner) {
       if (existingOwner === session.user.email) {
         return NextResponse.json(
@@ -41,7 +46,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 태그 등록
+    console.log('[REGISTER] Registering:', { uid, email: session.user.email });
     await registerTag(uid, session.user.email);
+
+    // 등록 직후 확인
+    const verifyOwner = await getTagOwner(uid);
+    console.log('[REGISTER] Verification - saved owner:', verifyOwner);
 
     return NextResponse.json({
       success: true,
@@ -49,10 +59,11 @@ export async function POST(request: NextRequest) {
       data: {
         uid,
         owner: session.user.email,
+        verified: verifyOwner === session.user.email,
       },
     });
   } catch (error) {
-    console.error('Tag registration error:', error);
+    console.error('[REGISTER] Error:', error);
     return NextResponse.json(
       {
         error: 'Internal server error',

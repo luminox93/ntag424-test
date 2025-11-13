@@ -92,7 +92,10 @@ function HomeContent() {
   }, [session, piccData, cmac]);
 
   const registerCurrentTag = async () => {
-    if (!result?.data?.uid) return;
+    if (!result?.data?.uid) {
+      alert("UID가 없습니다!");
+      return;
+    }
     console.log('Registering tag with UID:', result.data.uid);
     setLoading(true);
     setShowRegisterDialog(false);
@@ -106,14 +109,16 @@ function HomeContent() {
 
       const data = await response.json();
       console.log('Registration result:', data);
-      if (data.success) {
+
+      if (response.ok && data.success) {
+        alert(`✓ 태그 등록 성공!\nUID: ${result.data.uid}\nEmail: ${session?.user?.email}`);
         await verifyTag();
       } else {
-        alert(data.message || "태그 등록 실패");
+        alert(`✗ 태그 등록 실패\n상태: ${response.status}\n메시지: ${data.message || data.error}\n상세: ${JSON.stringify(data)}`);
       }
     } catch (error) {
       console.error('Registration error:', error);
-      alert("태그 등록 요청 실패");
+      alert(`✗ 태그 등록 요청 실패\n오류: ${error instanceof Error ? error.message : '알 수 없음'}`);
     } finally {
       setLoading(false);
     }

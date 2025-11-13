@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 
@@ -29,25 +29,7 @@ function HomeContent() {
   const piccData = searchParams.get('picc_data') || searchParams.get('p') || searchParams.get('enc');
   const cmac = searchParams.get('cmac') || searchParams.get('c');
 
-  // URL 파라미터 변경 시 result 초기화
-  useEffect(() => {
-    setResult(null);
-    setShowRegisterDialog(false);
-  }, [piccData, cmac]);
-
-  useEffect(() => {
-    if (piccData && cmac && session && !loading) {
-      verifyTag();
-    }
-  }, [piccData, cmac, session]);
-
-  useEffect(() => {
-    if (session && !piccData && !cmac) {
-      fetchUserTags();
-    }
-  }, [session, piccData, cmac]);
-
-  const verifyTag = async () => {
+  const verifyTag = useCallback(async () => {
     if (!piccData || !cmac) return;
     setLoading(true);
     setResult(null);
@@ -77,7 +59,25 @@ function HomeContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [piccData, cmac]);
+
+  // URL 파라미터 변경 시 result 초기화
+  useEffect(() => {
+    setResult(null);
+    setShowRegisterDialog(false);
+  }, [piccData, cmac]);
+
+  useEffect(() => {
+    if (piccData && cmac && session) {
+      verifyTag();
+    }
+  }, [piccData, cmac, session, verifyTag]);
+
+  useEffect(() => {
+    if (session && !piccData && !cmac) {
+      fetchUserTags();
+    }
+  }, [session, piccData, cmac]);
 
   const registerCurrentTag = async () => {
     if (!result?.data?.uid) return;
@@ -148,6 +148,11 @@ function HomeContent() {
           <button onClick={() => signOut()} className={styles.logoutButton}>로그아웃</button>
         </div>
         <main className={styles.main}>
+          <div style={{padding: '10px', background: '#f0f0f0', borderRadius: '5px', marginBottom: '10px', fontSize: '12px'}}>
+            <div><strong>Status:</strong> {loading ? '검증 중...' : result ? (result.success ? '성공' : '실패') : '대기 중'}</div>
+            <div><strong>piccData:</strong> {piccData?.substring(0, 20)}...</div>
+            <div><strong>cmac:</strong> {cmac?.substring(0, 16)}</div>
+          </div>
           {loading && <div className={styles.card}><div className={styles.loading}>검증 중...</div></div>}
           
           {showRegisterDialog && result?.needsRegistration && (

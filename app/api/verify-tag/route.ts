@@ -44,8 +44,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 태그 검증 (CMAC, 리플레이 공격)
-    const result = await verifyNTAG424(tagData, aesKey);
+    // 먼저 PICC 데이터에서 UID와 카운터만 파싱 (리플레이 검사 전)
+    const { parseNTAG424Data } = await import('@/lib/ntag424');
+    const parsedData = parseNTAG424Data(tagData.piccData);
+
+    if (!parsedData) {
+      return NextResponse.json({
+        success: false,
+        message: 'Invalid tag data format',
+        reason: 'Could not parse PICC data',
+      }, { status: 400 });
+    }
+
+    // 태그 소유자 확인 (리플레이 검사 전에 먼저 확인)
+    const owner = await getTagOwner(parsedData.uid);
+
+    // 미등록 태그는 리플레이 검사 없이 등록 제안
+    if (!owner) {
+      // 기본 CMAC 검증만 수행
+      const result = await verifyNTAG424(tagData, aesKey, true); // skipReplayCheck = true
+
+      if (!result.valid && result.reason !== 'Replay attack detected - counter already used or invalid') {
+        return NextResponse.json({
+          success: false,
+          message: 'Tag verification failed',
+          reason: result.reason,
+          data: {
+            uid: result.uid,
+            counter: result.counter,
+          },
+        }, { status: 400 });
+      }
+
+      return NextResponse.json({
+        success: false,
+        needsRegistration: true,
+        message: 'Tag not registered',
+        reason: 'This tag is not connected to any account. Would you like to connect it?',
+        data: {
+          uid: parsedData.uid,
+          counter: parsedData.counter,
+        },
+      });
+    }
+
+    // 등록된 태그는 전체 검증 (리플레이 공격 포함)
+    const result = await verifyNTAG424(tagData, aesKey, false);
 
     if (!result.valid) {
       return NextResponse.json({
@@ -57,23 +101,6 @@ export async function POST(request: NextRequest) {
           counter: result.counter,
         },
       }, { status: 400 });
-    }
-
-    // 태그 소유자 확인
-    const owner = await getTagOwner(result.uid!);
-    
-    // 태그가 등록되지 않은 경우 - 등록 제안
-    if (!owner) {
-      return NextResponse.json({
-        success: false,
-        needsRegistration: true,
-        message: 'Tag not registered',
-        reason: 'This tag is not connected to any account. Would you like to connect it?',
-        data: {
-          uid: result.uid,
-          counter: result.counter,
-        },
-      });
     }
 
     // 태그가 다른 사용자에게 등록된 경우

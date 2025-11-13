@@ -79,12 +79,21 @@ function parsePICCData(piccData: string): { uid: string; counter: number } | nul
     }
 
     const uid = buffer.subarray(0, 7).toString('hex').toUpperCase();
-    const counter = buffer.readUIntBE(7, 3);
+
+    // NTAG424는 Little-endian 사용
+    const counter = buffer.readUIntLE(7, 3);
 
     return { uid, counter };
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * PICC 데이터 파싱 (외부에서 사용 가능)
+ */
+export function parseNTAG424Data(piccData: string): { uid: string; counter: number } | null {
+  return parsePICCData(piccData);
 }
 
 /**
@@ -114,7 +123,8 @@ async function checkReplayAttack(uid: string, counter: number): Promise<boolean>
  */
 export async function verifyNTAG424(
   data: NTAG424Data,
-  aesKey: string
+  aesKey: string,
+  skipReplayCheck: boolean = false
 ): Promise<VerificationResult> {
   try {
     const key = hexToBuffer(aesKey);
@@ -142,8 +152,8 @@ export async function verifyNTAG424(
       };
     }
 
-    // 3. 리플레이 공격 체크
-    if (!(await checkReplayAttack(uid, counter))) {
+    // 3. 리플레이 공격 체크 (옵션)
+    if (!skipReplayCheck && !(await checkReplayAttack(uid, counter))) {
       return {
         valid: false,
         reason: 'Replay attack detected - counter already used or invalid',

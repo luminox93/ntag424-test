@@ -6,7 +6,6 @@ import { getTagOwner } from '@/lib/kv';
 
 export async function POST(request: NextRequest) {
   try {
-    // 인증 확인
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json(
@@ -18,7 +17,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { url, piccData, cmac } = body;
 
-    // AES 키 가져오기
     const aesKey = process.env.NTAG424_AES_KEY;
     if (!aesKey) {
       return NextResponse.json(
@@ -29,7 +27,6 @@ export async function POST(request: NextRequest) {
 
     let tagData;
 
-    // URL에서 파싱하거나 직접 제공된 데이터 사용
     if (url) {
       tagData = parseNTAG424URL(url);
       if (!tagData) {
@@ -64,23 +61,27 @@ export async function POST(request: NextRequest) {
 
     // 태그 소유자 확인
     const owner = await getTagOwner(result.uid!);
+    
+    // 태그가 등록되지 않은 경우 - 등록 제안
     if (!owner) {
       return NextResponse.json({
         success: false,
-        message: 'Access denied',
-        reason: 'Tag not registered to any user',
+        needsRegistration: true,
+        message: 'Tag not registered',
+        reason: 'This tag is not connected to any account. Would you like to connect it?',
         data: {
           uid: result.uid,
           counter: result.counter,
         },
-      }, { status: 403 });
+      });
     }
 
+    // 태그가 다른 사용자에게 등록된 경우
     if (owner !== session.user.email) {
       return NextResponse.json({
         success: false,
         message: 'Access denied',
-        reason: 'Tag is registered to another user',
+        reason: 'This tag is already registered to another user',
         data: {
           uid: result.uid,
           counter: result.counter,
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // 모든 검증 통과
+    // 모든 검증 통과 - 자신의 태그
     return NextResponse.json({
       success: true,
       message: 'Access granted',

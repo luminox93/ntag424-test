@@ -7,6 +7,7 @@ import styles from "./page.module.css";
 
 interface VerificationResult {
   success: boolean;
+  needsRegistration?: boolean;
   message: string;
   reason?: string;
   data?: {
@@ -22,7 +23,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerificationResult | null>(null);
-  const [registrationUid, setRegistrationUid] = useState("");
+  const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [userTags, setUserTags] = useState<string[]>([]);
 
   const piccData = searchParams.get('picc_data') || searchParams.get('p');
@@ -54,6 +55,10 @@ function HomeContent() {
 
       const data = await response.json();
       setResult(data);
+
+      if (data.needsRegistration) {
+        setShowRegisterDialog(true);
+      }
     } catch (error) {
       setResult({
         success: false,
@@ -65,25 +70,21 @@ function HomeContent() {
     }
   };
 
-  const registerTag = async () => {
-    if (!registrationUid) {
-      alert("태그 UID를 입력해주세요.");
-      return;
-    }
-
+  const registerCurrentTag = async () => {
+    if (!result?.data?.uid) return;
     setLoading(true);
+    setShowRegisterDialog(false);
+
     try {
       const response = await fetch("/api/register-tag", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: registrationUid }),
+        body: JSON.stringify({ uid: result.data.uid }),
       });
 
       const data = await response.json();
       if (data.success) {
-        alert("태그가 성공적으로 등록되었습니다!");
-        setRegistrationUid("");
-        fetchUserTags();
+        await verifyTag();
       } else {
         alert(data.message || "태그 등록 실패");
       }
@@ -107,11 +108,7 @@ function HomeContent() {
   };
 
   if (status === "loading") {
-    return (
-      <div className={styles.container}>
-        <div className={styles.loading}>로딩 중...</div>
-      </div>
-    );
+    return <div className={styles.container}><div className={styles.loading}>로딩 중...</div></div>;
   }
 
   if ((piccData && cmac) && !session) {
@@ -120,9 +117,7 @@ function HomeContent() {
         <div className={styles.loginCard}>
           <h1>NTAG424 인증 필요</h1>
           <p>태그에 접근하려면 Google 계정으로 로그인해주세요.</p>
-          <button onClick={() => signIn("google")} className={styles.loginButton}>
-            Sign in with Google
-          </button>
+          <button onClick={() => signIn("google")} className={styles.loginButton}>Sign in with Google</button>
         </div>
       </div>
     );
@@ -138,33 +133,50 @@ function HomeContent() {
               <div className={styles.userEmail}>{session.user?.email}</div>
             </div>
           </div>
-          <button onClick={() => signOut()} className={styles.logoutButton}>
-            로그아웃
-          </button>
+          <button onClick={() => signOut()} className={styles.logoutButton}>로그아웃</button>
         </div>
         <main className={styles.main}>
-          <h1 className={styles.title}>NTAG424 Tag Verification</h1>
-          {loading && (
-            <div className={styles.card}>
-              <div className={styles.loading}>검증 중...</div>
+          {loading && <div className={styles.card}><div className={styles.loading}>검증 중...</div></div>}
+          
+          {showRegisterDialog && result?.needsRegistration && (
+            <div className={styles.dialog}>
+              <div className={styles.dialogContent}>
+                <h2>태그 연결</h2>
+                <p>이 태그를 내 계정에 연결하시겠습니까?</p>
+                <div className={styles.dialogInfo}><strong>Tag UID:</strong> {result.data?.uid}</div>
+                <div className={styles.dialogButtons}>
+                  <button onClick={registerCurrentTag} className={styles.dialogButtonPrimary} disabled={loading}>연결하기</button>
+                  <button onClick={() => setShowRegisterDialog(false)} className={styles.dialogButtonSecondary}>취소</button>
+                </div>
+              </div>
             </div>
           )}
-          {result && (
-            <div className={`${styles.card} ${styles.result} ${result.success ? styles.success : styles.error}`}>
-              <h2>{result.success ? "✓ 접근 허용" : "✗ 접근 거부"}</h2>
-              <p>{result.message}</p>
-              {result.reason && (
-                <p className={styles.reason}>
-                  <strong>사유:</strong> {result.reason}
-                </p>
-              )}
-              {result.data && (
-                <div className={styles.dataBox}>
-                  {result.data.uid && <div><strong>Tag UID:</strong> {result.data.uid}</div>}
-                  {result.data.counter !== undefined && <div><strong>Counter:</strong> {result.data.counter}</div>}
+
+          {result && !showRegisterDialog && (
+            <>
+              {result.success ? (
+                <div className={styles.dashboard}>
+                  <h1 className={styles.title}>✓ 접근 허용</h1>
+                  <div className={styles.card}>
+                    <h2>현재 태그 정보</h2>
+                    <div className={styles.dataBox}>
+                      <div><strong>Tag UID:</strong> {result.data?.uid}</div>
+                      <div><strong>Counter:</strong> {result.data?.counter}</div>
+                    </div>
+                  </div>
+                  <div className={styles.card}>
+                    <h2>대시보드</h2>
+                    <p>태그 인증에 성공했습니다.</p>
+                  </div>
+                </div>
+              ) : (
+                <div className={`${styles.card} ${styles.result} ${styles.error}`}>
+                  <h2>✗ 접근 거부</h2>
+                  <p>{result.message}</p>
+                  {result.reason && <p className={styles.reason}><strong>사유:</strong> {result.reason}</p>}
                 </div>
               )}
-            </div>
+            </>
           )}
         </main>
       </div>
@@ -177,9 +189,7 @@ function HomeContent() {
         <div className={styles.loginCard}>
           <h1>NTAG424 Tag Manager</h1>
           <p>Google OAuth 로그인 후 NTAG424 태그를 관리할 수 있습니다.</p>
-          <button onClick={() => signIn("google")} className={styles.loginButton}>
-            Sign in with Google
-          </button>
+          <button onClick={() => signIn("google")} className={styles.loginButton}>Sign in with Google</button>
         </div>
       </div>
     );
@@ -194,47 +204,30 @@ function HomeContent() {
             <div className={styles.userEmail}>{session.user?.email}</div>
           </div>
         </div>
-        <button onClick={() => signOut()} className={styles.logoutButton}>
-          로그아웃
-        </button>
+        <button onClick={() => signOut()} className={styles.logoutButton}>로그아웃</button>
       </div>
       <main className={styles.main}>
-        <h1 className={styles.title}>NTAG424 Tag Manager</h1>
-        <div className={styles.card}>
-          <h2>새 태그 등록</h2>
-          <div className={styles.inputGroup}>
-            <label>태그 UID</label>
-            <input
-              type="text"
-              value={registrationUid}
-              onChange={(e) => setRegistrationUid(e.target.value)}
-              placeholder="04E12345678910"
-              className={styles.input}
-            />
-          </div>
-          <button onClick={registerTag} disabled={loading} className={styles.verifyButton}>
-            {loading ? "등록 중..." : "태그 등록"}
-          </button>
-        </div>
-        {userTags.length > 0 && (
+        <h1 className={styles.title}>내 태그 관리</h1>
+        {userTags.length > 0 ? (
           <div className={styles.card}>
-            <h2>내 태그 목록 ({userTags.length}개)</h2>
+            <h2>연결된 태그 ({userTags.length}개)</h2>
             <div className={styles.tagList}>
-              {userTags.map((tag, index) => (
-                <div key={index} className={styles.tagItem}>
-                  <strong>UID:</strong> {tag}
-                </div>
-              ))}
+              {userTags.map((tag, index) => <div key={index} className={styles.tagItem}><strong>UID:</strong> {tag}</div>)}
             </div>
+          </div>
+        ) : (
+          <div className={styles.card}>
+            <h2>연결된 태그가 없습니다</h2>
+            <p>NFC 태그를 스캔하여 접속하면 자동으로 연결할 수 있습니다.</p>
           </div>
         )}
         <div className={styles.info}>
           <h3>사용 방법</h3>
           <ol>
-            <li>NTAG424 태그의 UID를 위에 입력하여 등록하세요.</li>
-            <li>태그를 스캔하면 URL이 생성됩니다.</li>
-            <li>해당 URL에 접속하면 자동으로 태그 검증이 진행됩니다.</li>
-            <li>등록된 태그이고 리플레이 공격이 아니면 접근이 허용됩니다.</li>
+            <li>NTAG424 태그를 스캔하면 URL이 생성됩니다.</li>
+            <li>생성된 URL에 접속하면 자동으로 로그인 요청이 표시됩니다.</li>
+            <li>로그인 후 태그가 미등록 상태면 연결 여부를 물어봅니다.</li>
+            <li>연결된 태그로 접속하면 대시보드가 표시됩니다.</li>
           </ol>
         </div>
       </main>

@@ -173,7 +173,7 @@ export async function verifyNTAG424(
 export function parseNTAG424URL(url: string): NTAG424Data | null {
   try {
     const urlObj = new URL(url);
-    const piccData = urlObj.searchParams.get('picc_data') || urlObj.searchParams.get('p');
+    const piccData = urlObj.searchParams.get('picc_data') || urlObj.searchParams.get('p') || urlObj.searchParams.get('enc');
     const cmac = urlObj.searchParams.get('cmac') || urlObj.searchParams.get('c');
 
     if (!piccData || !cmac) {

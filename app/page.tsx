@@ -26,7 +26,7 @@ function HomeContent() {
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
   const [userTags, setUserTags] = useState<string[]>([]);
 
-  const piccData = searchParams.get('picc_data') || searchParams.get('p');
+  const piccData = searchParams.get('picc_data') || searchParams.get('p') || searchParams.get('enc');
   const cmac = searchParams.get('cmac') || searchParams.get('c');
 
   // URL 파라미터 변경 시 result 초기화

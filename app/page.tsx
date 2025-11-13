@@ -53,6 +53,7 @@ function HomeContent() {
     setResult(null);
 
     try {
+      console.log('Verifying tag with:', { piccData, cmac });
       const response = await fetch("/api/verify-tag", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -60,12 +61,14 @@ function HomeContent() {
       });
 
       const data = await response.json();
+      console.log('Verification result:', data);
       setResult(data);
 
       if (data.needsRegistration) {
         setShowRegisterDialog(true);
       }
     } catch (error) {
+      console.error('Verification error:', error);
       setResult({
         success: false,
         message: "검증 요청 실패",
@@ -78,6 +81,7 @@ function HomeContent() {
 
   const registerCurrentTag = async () => {
     if (!result?.data?.uid) return;
+    console.log('Registering tag with UID:', result.data.uid);
     setLoading(true);
     setShowRegisterDialog(false);
 
@@ -89,12 +93,14 @@ function HomeContent() {
       });
 
       const data = await response.json();
+      console.log('Registration result:', data);
       if (data.success) {
         await verifyTag();
       } else {
         alert(data.message || "태그 등록 실패");
       }
     } catch (error) {
+      console.error('Registration error:', error);
       alert("태그 등록 요청 실패");
     } finally {
       setLoading(false);
@@ -178,8 +184,14 @@ function HomeContent() {
               ) : (
                 <div className={`${styles.card} ${styles.result} ${styles.error}`}>
                   <h2>✗ 접근 거부</h2>
-                  <p>{result.message}</p>
+                  <p><strong>메시지:</strong> {result.message}</p>
                   {result.reason && <p className={styles.reason}><strong>사유:</strong> {result.reason}</p>}
+                  {result.data?.uid && <p><strong>UID:</strong> {result.data.uid}</p>}
+                  {result.data?.counter !== undefined && <p><strong>Counter:</strong> {result.data.counter}</p>}
+                  <details style={{marginTop: '10px', fontSize: '12px'}}>
+                    <summary>디버그 정보</summary>
+                    <pre style={{textAlign: 'left', overflow: 'auto'}}>{JSON.stringify({ piccData, cmac, result }, null, 2)}</pre>
+                  </details>
                 </div>
               )}
             </>

@@ -29,6 +29,18 @@ function HomeContent() {
   const piccData = searchParams.get('picc_data') || searchParams.get('p') || searchParams.get('enc');
   const cmac = searchParams.get('cmac') || searchParams.get('c');
 
+  // Debug logging
+  useEffect(() => {
+    console.log('Page loaded:', {
+      hasSession: !!session,
+      hasPiccData: !!piccData,
+      hasCmac: !!cmac,
+      piccDataLength: piccData?.length,
+      cmacLength: cmac?.length,
+      fullUrl: typeof window !== 'undefined' ? window.location.href : 'SSR',
+    });
+  }, [session, piccData, cmac]);
+
   const verifyTag = useCallback(async () => {
     if (!piccData || !cmac) return;
     setLoading(true);
@@ -124,12 +136,20 @@ function HomeContent() {
   }
 
   if ((piccData && cmac) && !session) {
+    // Build callback URL with current parameters to preserve them after authentication
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : '/';
     return (
       <div className={styles.container}>
         <div className={styles.loginCard}>
           <h1>NTAG424 인증 필요</h1>
           <p>태그에 접근하려면 Google 계정으로 로그인해주세요.</p>
-          <button onClick={() => signIn("google")} className={styles.loginButton}>Sign in with Google</button>
+          <button onClick={() => signIn("google", { callbackUrl: currentUrl })} className={styles.loginButton}>Sign in with Google</button>
+          <div style={{marginTop: '20px', padding: '10px', background: '#d4edda', borderRadius: '5px', fontSize: '11px', textAlign: 'left', wordBreak: 'break-all', border: '1px solid #28a745'}}>
+            <strong>✓ 태그 감지됨</strong><br/>
+            picc_data: {piccData ? `있음 (${piccData.length}자)` : '없음'}<br/>
+            cmac: {cmac ? `있음 (${cmac.length}자)` : '없음'}<br/>
+            Callback URL: {currentUrl.substring(0, 80)}...
+          </div>
         </div>
       </div>
     );
@@ -207,12 +227,19 @@ function HomeContent() {
   }
 
   if (!session) {
+    const currentUrl = typeof window !== 'undefined' ? window.location.href : '/';
     return (
       <div className={styles.container}>
         <div className={styles.loginCard}>
           <h1>NTAG424 Tag Manager</h1>
           <p>Google OAuth 로그인 후 NTAG424 태그를 관리할 수 있습니다.</p>
-          <button onClick={() => signIn("google")} className={styles.loginButton}>Sign in with Google</button>
+          <button onClick={() => signIn("google", { callbackUrl: currentUrl })} className={styles.loginButton}>Sign in with Google</button>
+          <div style={{marginTop: '20px', padding: '10px', background: '#f0f0f0', borderRadius: '5px', fontSize: '11px', textAlign: 'left', wordBreak: 'break-all'}}>
+            <strong>디버그 정보:</strong><br/>
+            URL: {currentUrl}<br/>
+            picc_data: {piccData ? `있음 (${piccData.length}자)` : '없음'}<br/>
+            cmac: {cmac ? `있음 (${cmac.length}자)` : '없음'}
+          </div>
         </div>
       </div>
     );
@@ -231,6 +258,13 @@ function HomeContent() {
       </div>
       <main className={styles.main}>
         <h1 className={styles.title}>내 태그 관리</h1>
+        <div style={{padding: '10px', background: '#fff3cd', borderRadius: '5px', marginBottom: '10px', fontSize: '11px', textAlign: 'left', wordBreak: 'break-all', border: '1px solid #ffc107'}}>
+          <strong>디버그 정보:</strong><br/>
+          현재 URL: {typeof window !== 'undefined' ? window.location.href : 'SSR'}<br/>
+          picc_data: {piccData ? `있음 (${piccData.length}자)` : '❌ 없음'}<br/>
+          cmac: {cmac ? `있음 (${cmac.length}자)` : '❌ 없음'}<br/>
+          세션: ✓ 로그인됨
+        </div>
         {userTags.length > 0 ? (
           <div className={styles.card}>
             <h2>연결된 태그 ({userTags.length}개)</h2>

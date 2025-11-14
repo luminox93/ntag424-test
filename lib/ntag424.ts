@@ -67,24 +67,51 @@ function decryptSUNMessage(
 }
 
 /**
- * PICC 데이터에서 카운터와 UID 추출
+ * PICC 데이터에서 카운터와 UID 추출 (복호화된 데이터에서)
  */
-function parsePICCData(piccData: string): { uid: string; counter: number } | null {
+function parsePICCData(piccData: string, aesKey?: string): { uid: string; counter: number } | null {
   try {
-    // PICC 데이터 형식: UID (7바이트) + Counter (3바이트) + ...
     const buffer = hexToBuffer(piccData);
 
-    if (buffer.length < 10) {
+    if (buffer.length < 16) {
       return null;
     }
 
-    const uid = buffer.subarray(0, 7).toString('hex').toUpperCase();
+    let dataBuffer = buffer;
+
+    // AES 키가 제공된 경우 복호화 수행
+    if (aesKey) {
+      try {
+        const key = hexToBuffer(aesKey);
+        // IV는 0으로 채워진 16바이트 (NTAG424 SDM 기본값)
+        const iv = Buffer.alloc(16, 0);
+
+        // PICC 데이터가 16바이트 블록 단위인지 확인
+        if (buffer.length % 16 !== 0) {
+          console.warn('[NTAG424] PICC data length not aligned to 16 bytes, using as-is');
+        } else {
+          // 복호화 수행
+          dataBuffer = decryptSUNMessage(buffer, key, iv);
+          console.log('[NTAG424] Decrypted PICC data:', dataBuffer.toString('hex'));
+        }
+      } catch (decryptError) {
+        console.warn('[NTAG424] Decryption failed, using raw data:', decryptError);
+      }
+    }
+
+    // 복호화된 데이터 형식: UID (7바이트) + Counter (3바이트) + ...
+    if (dataBuffer.length < 10) {
+      return null;
+    }
+
+    const uid = dataBuffer.subarray(0, 7).toString('hex').toUpperCase();
 
     // NTAG424는 Little-endian 사용
-    const counter = buffer.readUIntLE(7, 3);
+    const counter = dataBuffer.readUIntLE(7, 3);
 
     return { uid, counter };
   } catch (error) {
+    console.error('[NTAG424] Parse error:', error);
     return null;
   }
 }
@@ -92,8 +119,8 @@ function parsePICCData(piccData: string): { uid: string; counter: number } | nul
 /**
  * PICC 데이터 파싱 (외부에서 사용 가능)
  */
-export function parseNTAG424Data(piccData: string): { uid: string; counter: number } | null {
-  return parsePICCData(piccData);
+export function parseNTAG424Data(piccData: string, aesKey?: string): { uid: string; counter: number } | null {
+  return parsePICCData(piccData, aesKey);
 }
 
 /**
@@ -131,8 +158,8 @@ export async function verifyNTAG424(
     const piccData = hexToBuffer(data.piccData);
     const cmac = hexToBuffer(data.cmac);
 
-    // 1. PICC 데이터 파싱
-    const parsed = parsePICCData(data.piccData);
+    // 1. PICC 데이터 파싱 (복호화 포함)
+    const parsed = parsePICCData(data.piccData, aesKey);
     if (!parsed) {
       return {
         valid: false,
@@ -180,7 +207,7 @@ export async function verifyNTAG424(
 /**
  * URL에서 NTAG424 파라미터 추출
  */
-export function parseNTAG424URL(url: string): NTAG424Data | null {
+export function parseNTAG424URL(url: string, aesKey?: string): NTAG424Data | null {
   try {
     const urlObj = new URL(url);
     const piccData = urlObj.searchParams.get('picc_data') || urlObj.searchParams.get('p') || urlObj.searchParams.get('enc');
@@ -190,7 +217,7 @@ export function parseNTAG424URL(url: string): NTAG424Data | null {
       return null;
     }
 
-    const parsed = parsePICCData(piccData);
+    const parsed = parsePICCData(piccData, aesKey);
 
     return {
       piccData,

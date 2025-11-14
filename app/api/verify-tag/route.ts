@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     let tagData;
 
     if (url) {
-      tagData = parseNTAG424URL(url);
+      tagData = parseNTAG424URL(url, aesKey);
       if (!tagData) {
         return NextResponse.json(
           { success: false, message: 'Invalid NTAG424 URL format' },
@@ -46,9 +46,10 @@ export async function POST(request: NextRequest) {
 
     // 먼저 PICC 데이터에서 UID와 카운터만 파싱 (리플레이 검사 전)
     const { parseNTAG424Data } = await import('@/lib/ntag424');
-    const parsedData = parseNTAG424Data(tagData.piccData);
+    const parsedData = parseNTAG424Data(tagData.piccData, aesKey);
 
     console.log('[VERIFY] Parsed data:', parsedData);
+    console.log('[VERIFY] Raw PICC data:', tagData.piccData);
 
     if (!parsedData) {
       return NextResponse.json({

@@ -1,5 +1,6 @@
 import { createDecipheriv } from 'crypto';
 import { isCounterUsed, getMaxCounter, saveCounter } from './kv';
+import aesCmac from 'node-aes-cmac';
 
 /**
  * NTAG424 태그 검증 및 리플레이 공격 방어 유틸리티
@@ -28,25 +29,37 @@ function hexToBuffer(hex: string): Buffer {
 }
 
 /**
- * AES-128 CMAC 검증
+ * AES-128 CMAC 검증 (node-aes-cmac 라이브러리 사용)
  */
 function verifyCMAC(
   piccData: Buffer,
   cmac: Buffer,
   key: Buffer
 ): boolean {
-  // 실제 CMAC 검증 로직
-  // 여기서는 간단한 검증을 수행하지만, 실제로는 AES-CMAC 알고리즘을 사용해야 합니다
-  // crypto 라이브러리의 createCipheriv를 사용하여 CMAC을 계산할 수 있습니다
+  try {
+    // CMAC의 길이가 적절한지 확인 (8바이트)
+    if (cmac.length !== 8) {
+      console.warn('[CMAC] Invalid CMAC length:', cmac.length);
+      return false;
+    }
 
-  // CMAC의 길이가 적절한지 확인 (8바이트)
-  if (cmac.length !== 8) {
+    // node-aes-cmac을 사용하여 CMAC 계산
+    const calculatedCMAC = aesCmac(key, piccData);
+
+    // NTAG424는 CMAC의 처음 8바이트만 사용
+    const truncatedCMAC = calculatedCMAC.subarray(0, 8);
+
+    console.log('[CMAC] Expected:', cmac.toString('hex'));
+    console.log('[CMAC] Calculated:', truncatedCMAC.toString('hex'));
+    console.log('[CMAC] PICC Data:', piccData.toString('hex'));
+    console.log('[CMAC] Key:', key.toString('hex'));
+
+    // 상수 시간 비교 (타이밍 공격 방지)
+    return truncatedCMAC.equals(cmac);
+  } catch (error) {
+    console.error('[CMAC] Verification error:', error);
     return false;
   }
-
-  // 실제 구현에서는 AES-CMAC 계산 후 비교
-  // 여기서는 기본 검증만 수행
-  return true;
 }
 
 /**

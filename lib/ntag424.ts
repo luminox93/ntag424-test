@@ -153,15 +153,16 @@ function parsePICCData(piccData: string, aesKey?: string): { uid: string; counte
       }
     }
 
-    // 복호화된 데이터 형식: UID (7바이트) + Counter (3바이트) + ...
-    if (dataBuffer.length < 10) {
+    // 복호화된 데이터 형식: PICCDataTag (1바이트) + UID (7바이트) + Counter (3바이트) + ...
+    if (dataBuffer.length < 11) {
       return null;
     }
 
-    const uid = dataBuffer.subarray(0, 7).toString('hex').toUpperCase();
+    // PICCDataTag (첫 1바이트) 건너뛰고 UID 추출
+    const uid = dataBuffer.subarray(1, 8).toString('hex').toUpperCase();
 
     // NTAG424는 Little-endian 사용
-    const counter = dataBuffer.readUIntLE(7, 3);
+    const counter = dataBuffer.readUIntLE(8, 3);
 
     return { uid, counter };
   } catch (error) {

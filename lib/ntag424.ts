@@ -211,7 +211,7 @@ export async function verifyNTAG424(
       valid: true,
       uid,
       counter,
-      decryptedData: piccData.toString('hex'),
+      decryptedData: piccDataDecrypted.toString('hex'),
     };
   } catch (error) {
     return {

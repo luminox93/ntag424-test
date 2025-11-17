@@ -1,4 +1,7 @@
 declare module 'node-aes-cmac' {
-  function aesCmac(key: Buffer, message: Buffer): Buffer;
-  export = aesCmac;
+  export function aesCmac(
+    key: Buffer | string,
+    message: Buffer | string,
+    options?: { returnAsBuffer?: boolean }
+  ): Buffer | string;
 }

@@ -1,6 +1,6 @@
 import { createDecipheriv } from 'crypto';
 import { isCounterUsed, getMaxCounter, saveCounter } from './kv';
-import aesCmac from 'node-aes-cmac';
+import { aesCmac } from 'node-aes-cmac';
 
 /**
  * NTAG424 태그 검증 및 리플레이 공격 방어 유틸리티
@@ -43,8 +43,8 @@ function verifyCMAC(
       return false;
     }
 
-    // node-aes-cmac을 사용하여 CMAC 계산
-    const calculatedCMAC = aesCmac(key, piccData);
+    // node-aes-cmac을 사용하여 CMAC 계산 (Buffer 반환 옵션 사용)
+    const calculatedCMAC = aesCmac(key, piccData, { returnAsBuffer: true }) as Buffer;
 
     // NTAG424는 CMAC의 처음 8바이트만 사용
     const truncatedCMAC = calculatedCMAC.subarray(0, 8);

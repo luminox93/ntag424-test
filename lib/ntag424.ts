@@ -168,10 +168,14 @@ export async function verifyNTAG424(
 ): Promise<VerificationResult> {
   try {
     const key = hexToBuffer(aesKey);
-    const piccData = hexToBuffer(data.piccData);
+    const piccDataEncrypted = hexToBuffer(data.piccData);
     const cmac = hexToBuffer(data.cmac);
 
-    // 1. PICC 데이터 파싱 (복호화 포함)
+    // 1. PICC 데이터 복호화
+    const iv = Buffer.alloc(16, 0);
+    const piccDataDecrypted = decryptSUNMessage(piccDataEncrypted, key, iv);
+
+    // 2. PICC 데이터 파싱
     const parsed = parsePICCData(data.piccData, aesKey);
     if (!parsed) {
       return {
@@ -182,8 +186,8 @@ export async function verifyNTAG424(
 
     const { uid, counter } = parsed;
 
-    // 2. CMAC 검증
-    if (!verifyCMAC(piccData, cmac, key)) {
+    // 3. CMAC 검증 (복호화된 데이터 사용)
+    if (!verifyCMAC(piccDataDecrypted, cmac, key)) {
       return {
         valid: false,
         reason: 'CMAC verification failed',
@@ -192,7 +196,7 @@ export async function verifyNTAG424(
       };
     }
 
-    // 3. 리플레이 공격 체크 (옵션)
+    // 4. 리플레이 공격 체크 (옵션)
     if (!skipReplayCheck && !(await checkReplayAttack(uid, counter))) {
       return {
         valid: false,

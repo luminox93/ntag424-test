@@ -87,11 +87,17 @@ function verifyCMAC(
     // node-aes-cmac을 사용하여 CMAC 계산 (Buffer 반환 옵션 사용)
     const calculatedCMAC = aesCmac(key, piccData, { returnAsBuffer: true }) as Buffer;
 
-    // NTAG424는 CMAC의 처음 8바이트만 사용 (MACt)
-    const truncatedCMAC = calculatedCMAC.subarray(0, 8);
+    console.log('[CMAC] Full 16-byte CMAC:', calculatedCMAC.toString('hex'));
+
+    // NTAG424는 CMAC의 홀수 바이트만 사용 (MACt)
+    // MACt = CMAC[1] || CMAC[3] || CMAC[5] || CMAC[7] || CMAC[9] || CMAC[11] || CMAC[13] || CMAC[15]
+    const truncatedCMAC = Buffer.alloc(8);
+    for (let i = 0; i < 8; i++) {
+      truncatedCMAC[i] = calculatedCMAC[i * 2 + 1];
+    }
 
     console.log('[CMAC] Expected:', cmac.toString('hex'));
-    console.log('[CMAC] Calculated:', truncatedCMAC.toString('hex'));
+    console.log('[CMAC] Calculated (odd bytes):', truncatedCMAC.toString('hex'));
     console.log('[CMAC] Input Data:', piccData.toString('hex'));
     console.log('[CMAC] Session Key:', key.toString('hex'));
 

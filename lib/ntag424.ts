@@ -186,8 +186,15 @@ export async function verifyNTAG424(
 
     const { uid, counter } = parsed;
 
-    // 3. CMAC 검증 (복호화된 데이터 사용)
-    if (!verifyCMAC(piccDataDecrypted, cmac, key)) {
+    // 3. CMAC 입력 데이터 생성 (Counter + UID)
+    const cmacInputData = Buffer.alloc(10);
+    cmacInputData.writeUIntLE(counter, 0, 3); // Counter (3바이트, little-endian)
+    Buffer.from(uid, 'hex').copy(cmacInputData, 3); // UID (7바이트)
+
+    console.log('[CMAC] Input data (Counter + UID):', cmacInputData.toString('hex'));
+
+    // 4. CMAC 검증
+    if (!verifyCMAC(cmacInputData, cmac, key)) {
       return {
         valid: false,
         reason: 'CMAC verification failed',
@@ -196,7 +203,7 @@ export async function verifyNTAG424(
       };
     }
 
-    // 4. 리플레이 공격 체크 (옵션)
+    // 5. 리플레이 공격 체크 (옵션)
     if (!skipReplayCheck && !(await checkReplayAttack(uid, counter))) {
       return {
         valid: false,
